@@ -1,0 +1,10 @@
+Player:
+    position=player has a coordinate
+    
+Wall:
+    position = Wall has a coordinate
+board:
+    width
+    height
+    has a Player
+    has a list of Wall

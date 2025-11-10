@@ -1,12 +1,14 @@
+import re
 from player import Player
 from wall import Wall
 from hole import Hole
 import numpy as np
+from tabulate import tabulate
 from number_block import NumberBlock
 from coordinate import Coordinate
 from goal_block import GoalBlock
 from operator_block import OperatorBlock
-from tabulate import tabulate
+
 
 class Board:
     def __init__(self,width:int,height:int):
@@ -19,7 +21,16 @@ class Board:
         self.goal_blocks: list[GoalBlock]=[]
         self.operator_blocks: list[OperatorBlock]=[]
         self.grid = [['🟪' for _ in range(self.width)] for _ in range(self.height)]
-
+        self.EMOJI_MAP = {
+        '🟪': None, # Empty space, do nothing
+        '🧱': Wall,
+        '🤖': Player,
+        '🕳️': Hole,
+        '+': OperatorBlock,
+        '-': OperatorBlock,
+        '*': OperatorBlock,
+        '/': OperatorBlock,
+         }
     def add_player(self,player:Player):
         self.player=player
         print(f'Board: player has been add to the game')
@@ -63,43 +74,46 @@ class Board:
         
         return False
     
-    def check_for_solved_goal(self):
-        # 1. First, check if we have at least one of each required piece.
-        if not self.number_blocks or not self.goal_blocks or not self.operator_blocks:
-            return False
-        # 2. Get the first available piece of each type.
-        num1=self.number_blocks[0]
-        op=self.operator_blocks[0]
-        num2=self.number_blocks[1] if len(self.number_blocks) > 1 else self.number_blocks[0]
-        goal=self.goal_blocks[0]
+    # In board.py, replace your entire check_for_solved_goal method with this:
 
-        # 3. Calculate the result.
-        if len(self.number_blocks) < 2:
-            num2_value=0
-        else:
-            num2_value=self.number_blocks[1].value
-        result=0
-        if op.operator=='+':
-            result=num1.value + num2.value
-        elif op.operator=='-':
-            result=num1.value - num2.value
-        elif op.operator=='*':
-            result=num1.value * num2.value
-        elif op.operator=='/':
-            if num2_value==0:
-                print(f'Can not divide by zero')
-                return False
-            result=num1.value / num2.value
-        # 4. Compare the result to the goal's target value.
-        if result == goal.target_value:
-            print(f"\n!!! GOAL SOLVED !!!")
-            print(f"Solved: {num1.value} {op.operator} {num2_value} = {result}")
-            # 5. If it matches, remove the goal block.
+    def check_for_solved_goal(self):
+        """
+        Uses the new expression evaluator to check for a solved goal.
+        """
+        # 1. Find an expression on the board.
+        expression_str = self._find_expression_on_board()
+         # --- DEBUG PRINT 1 ---
+        print(f"DEBUG: Found expression string: '{expression_str}'")
+        # 2. If no expression, we can't solve anything.
+        if not expression_str:
+            print("DEBUG: No expression found. Exiting check.")
+            return False
+
+        # 3. Get the first goal to check against.
+        if not self.goal_blocks:
+            print("DEBUG: No goal blocks on the board. Exiting check.")
+            return False
+        goal = self.goal_blocks[0]
+
+        print(f"\nFound expression: {expression_str}")
+
+        # 4. Evaluate the expression using your powerful function!
+        calculated_result = self.evaluate_expression(expression_str)
+        print(f"DEBUG: Calculated result from expression is: {calculated_result}")
+        # 5. Compare the result to the goal's target value.
+        if calculated_result == goal.target_value:
+            print(f"!!! GOAL SOLVED !!!")
+            print(f"Solved: {expression_str} = {calculated_result}")
+            
+            # 6. If it matches, remove the goal block and unlock the hole.
             self.remove_object(goal)
-            if self.hole:
-                self.hole.unlock()
+            
             return True
+         # If we get here, no goal was solved
+        
         return False
+
+    
     def get_object_at(self,x,y):
         if self.player and self.player.position.x==x and self.player.position.y==y:
             return self.player
@@ -141,6 +155,7 @@ class Board:
             print('The square is Empty , you can move the player..')
             self.player.position=new_position
             self.check_for_solved_goal()
+            
             return
         if isinstance(target_object,Wall):
             print('Board: Can\'t move, there is a WALL!')
@@ -156,6 +171,7 @@ class Board:
                 target_object.position=position_behind_nblock
                 self.player.position=new_position
                 self.check_for_solved_goal()
+                
                 return
             else:
                 print('Board: Can not push there is somthing behind the block')
@@ -170,6 +186,7 @@ class Board:
                 target_object.position=position_behind_nblock
                 self.player.position=new_position
                 self.check_for_solved_goal()
+                
                 return
             else:
                 print('Board: Can not push there is somthing behind the block')
@@ -189,42 +206,171 @@ class Board:
         A helper to set the grid cell at a natural (x, y) coordinate.
         """
         self.grid[y][x] = value
-    # In board.py, inside the Board class
+    
+
     def show_board(self):
         """
-        Prints a 2D visual representation of the board.
-        This method ALWAYS starts with a clean grid to prevent smears.
+        Prints a clean, aligned 2D visual representation of the board.
+        This version is more reliable than tabulate.
         """
-        # 1. Create a brand new, empty grid. This is the "eraser".
-        self.grid = [[' ' for _ in range(self.width)] for _ in range(self.height)]
+        # 1. Create an empty grid, with padding for alignment
+        grid = [[' 🟪 ' for _ in range(self.width)] for _ in range(self.height)]
 
-        # 2. Draw all objects on the new, clean grid.
-        # The order doesn't matter as much as starting with a clean grid.
+        # 2. Place all the objects on the grid
         if self.hole:
-            self._set_cell(self.hole.position.x, self.hole.position.y, str(self.hole))
+            x, y = self.hole.position.x, self.hole.position.y
+            grid[y][x] = ' 🕳️ ' # Padded hole
 
         for wall in self.walls:
-            self._set_cell(wall.position.x, wall.position.y, '🧱')
+            x, y = wall.position.x, wall.position.y
+            grid[y][x] = ' 🧱 ' # Padded wall
 
         for block in self.number_blocks:
-            self._set_cell(block.position.x, block.position.y, str(block.value))
+            x, y = block.position.x, block.position.y
+            grid[y][x] = f' {block.value} ' # Padded number
 
         for op_block in self.operator_blocks:
-            self._set_cell(op_block.position.x, op_block.position.y, op_block.operator)
+            x, y = op_block.position.x, op_block.position.y
+            grid[y][x] = f' {op_block.operator} ' # Padded operator
 
         for goal_block in self.goal_blocks:
-            self._set_cell(goal_block.position.x, goal_block.position.y, '🏁')
+            x, y = goal_block.position.x, goal_block.position.y
+            
+            grid[y][x] = f' {goal_block.target_value} '
 
         if self.player:
-            self._set_cell(self.player.position.x, self.player.position.y, '🤖')
+            x, y = self.player.position.x, self.player.position.y
+            grid[y][x] = ' 🤖 ' # Padded player
 
-        # 3. Print the final grid.
+        # 3. Print the grid row by row
         print("\n--- Board Visual ---")
-        for row in self.grid:
-            print(" ".join(row))
-        print("--------------------\n")
-        
+        print(tabulate(grid,tablefmt='grid'))
+        print("--------------------\n")    
     def is_game_won(self) -> bool:
         if not self.hole:
             return False # No hole, can't win
-        return self.player.position == self.hole.position
+        return self.player.position.x == self.hole.position.x and self.player.position.y == self.hole.position.y
+    def evaluate_expression(self,expr):
+        """
+        Evaluates a mathematical expression string like "2+3*4".
+        Handles operator precedence.
+        """
+        # Remove spaces
+        expr = expr.replace(' ', '')
+
+        # Handle double operators like -- or ++
+        expr = re.sub(r'\+\+', '+', expr)
+        expr = re.sub(r'--', '+', expr)
+        expr = re.sub(r'\+-', '-', expr)
+        expr = re.sub(r'-\+', '-', expr)
+
+        # Handle leading negative numbers
+        if expr and expr[0] == '-':
+            expr = '0' + expr
+
+        # Find all numbers and operators
+        tokens = re.findall(r'\d+|[+\-*/]', expr)
+
+        # Convert number strings to actual integers
+        i = 0
+        while i < len(tokens):
+            if re.fullmatch(r'\d+', tokens[i]):
+                tokens[i] = int(tokens[i])
+            i += 1
+
+        # Evaluate multiplication and division first
+        i = 0
+        while i < len(tokens):
+            if tokens[i] in ('*', '/'):
+                left = tokens[i - 1]
+                right = tokens[i + 1]
+                if tokens[i] == '*':
+                    result = left * right
+                else:
+                    if right == 0: return float('NOT_DEFINED') # Handle division by zero
+                    result = left / right
+                tokens[i - 1:i + 2] = [result]
+                i -= 1 # Go back and re-evaluate
+            else:
+                i += 1
+
+        # Evaluate addition and subtraction
+        if not tokens:
+            return 0
+        result = tokens[0]
+        i = 1
+        while i < len(tokens):
+            op = tokens[i]
+            num = tokens[i + 1]
+            if op == '+':
+                result += num
+            elif op == '-':
+                result -= num
+            i += 2
+
+        return int(result) # Ensure the result is an integer
+    
+    
+    
+
+    def load_level_from_data(self, level_data: list[list[str]]):
+        """
+        Reads level data from a 2D list of emojis and creates game objects.
+        This version uses the GoalType Enum for robustness.
+        """
+        self.height = len(level_data)
+        self.width = max(len(row) for row in level_data)
+        print(f"Loading a level of size {self.width}x{self.height}...")
+
+        # Loop through the data and create objects
+        for y, row in enumerate(level_data):
+            for x, emoji in enumerate(row):
+                if emoji in ['3️⃣']:
+                    target_value=int(emoji[0])
+                    self.add_goal_block(GoalBlock(x,y,target_value))
+                # 1. Handle digits first (for NumberBlocks)
+                if emoji.isdigit():
+                    value = int(emoji)
+                    self.add_number_block(NumberBlock(x, y, value))
+                    continue # Move to the next square
+                # 3. Handle all other emojis with our map
+                object_class = self.EMOJI_MAP.get(emoji)
+                if object_class:
+                    
+                    if object_class == GoalBlock:
+                        self.add_goal_block(GoalBlock(x,y))
+                    if object_class == Wall:
+                        self.add_wall(Wall(x, y))
+                    elif object_class == Player:
+                        self.add_player(Player(x, y))
+                    elif object_class == Hole:
+                        self.add_hole(Hole(x, y))
+                    elif object_class == OperatorBlock:
+                        self.add_operator_block(OperatorBlock(x, y, emoji)) # The emoji is the operator
+                # '🟪' (empty) and unknown emojis are ignored
+                
+        print("Level loading complete.\n")   
+    def _find_expression_on_board(self):
+        """
+        Scans the board to find a simple Num-Op-Num pattern.
+        Returns the expression as a string (e.g., "2+3") or None if not found.
+        This is a simplified version. A more advanced version could scan in all directions.
+        """
+        # For now, let's only look for horizontal patterns.
+        for y in range(self.height):
+            for x in range(self.width - 2): # -2 because we need space for 3 items
+                # Get objects at the three spots
+                obj1 = self.get_object_at(x, y)
+                obj2 = self.get_object_at(x + 1, y)
+                obj3 = self.get_object_at(x + 2, y)
+
+                # Check if it's a valid expression pattern
+                if (isinstance(obj1, NumberBlock) and
+                    isinstance(obj2, OperatorBlock) and
+                    isinstance(obj3, NumberBlock)):
+                    
+                    # Build the expression string
+                    expr_str = f"{obj1.value}{obj2.operator}{obj3.value}"
+                    return expr_str
+        
+        return None # No expression found

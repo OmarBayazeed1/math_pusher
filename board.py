@@ -325,7 +325,7 @@ class Board:
         # Loop through the data and create objects
         for y, row in enumerate(level_data):
             for x, emoji in enumerate(row):
-                if emoji in ['3️⃣']:
+                if emoji in ['0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣']:
                     target_value=int(emoji[0])
                     self.add_goal_block(GoalBlock(x,y,target_value))
                 # 1. Handle digits first (for NumberBlocks)
@@ -356,21 +356,31 @@ class Board:
         Returns the expression as a string (e.g., "2+3") or None if not found.
         This is a simplified version. A more advanced version could scan in all directions.
         """
-        # For now, let's only look for horizontal patterns.
+            # --- 1. Check for Horizontal Patterns (left-to-right) ---
         for y in range(self.height):
             for x in range(self.width - 2): # -2 because we need space for 3 items
-                # Get objects at the three spots
                 obj1 = self.get_object_at(x, y)
-                obj2 = self.get_object_at(x + 1, y)
-                obj3 = self.get_object_at(x + 2, y)
+                obj_op = self.get_object_at(x + 1, y)
+                obj2 = self.get_object_at(x + 2, y)
 
-                # Check if it's a valid expression pattern
                 if (isinstance(obj1, NumberBlock) and
-                    isinstance(obj2, OperatorBlock) and
-                    isinstance(obj3, NumberBlock)):
+                    isinstance(obj_op, OperatorBlock) and
+                    isinstance(obj2, NumberBlock)):
                     
-                    # Build the expression string
-                    expr_str = f"{obj1.value}{obj2.operator}{obj3.value}"
-                    return expr_str
+                    return (obj1.value, obj_op.operator, obj2.value, 'horizontal')
+            # 2) Look for vertical patterns (top -> bottom)
+                for x in range(self.width):
+                    for y in range(self.height - 2):
+                        obj1 = self.get_object_at(x, y)
+                        obj2 = self.get_object_at(x, y + 1)
+                        obj3 = self.get_object_at(x, y + 2)
+    
+                        if (isinstance(obj1, NumberBlock) and
+                            isinstance(obj2, OperatorBlock) and
+                            isinstance(obj3, NumberBlock)):
         
+                            # Build the expression string in top->bottom order
+                            expr_str = f"{obj1.value}{obj2.operator}{obj3.value}"
+                            return expr_str
+ 
         return None # No expression found

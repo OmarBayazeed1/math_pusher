@@ -27,6 +27,16 @@ level_2_data =[['🟪','🟪','🟪','🧱','🧱','🧱','🟪','🧱','🧱','
                 ['🟪','🟪','🟪','🟪','🧱','🧱','🧱','🟪','🟪','🟪','🟪','🧱','🧱','🧱'],
 
     ]
+level_3_data =[ ['🧱','🧱','🟪','🟪','🟪','🧱','🧱','🧱','🧱','🧱','🧱','🧱','🧱'],
+                ['🧱','🟪','🟪','🤖','🟪','🧱','🧱','🧱','🧱','🧱','🧱','🧱','🧱'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🧱','🧱','🧱','🧱','🧱','🧱','🧱'],
+                ['🟪','🟪','🟪' ,'+','🟪','🟪','🧱','🧱','🧱','🧱','🧱','🧱','🧱'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','3️⃣','4️⃣','5️⃣','🟪','🕳️'],
+                ['🟪','1','🟪','2','🟪','3','🟪','🧱','🧱','🧱','🧱','🧱','🧱'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪','🧱','🧱','🧱','🧱','🧱','🧱'], 
+            ]
+
+
 # --- The Main Game ---
 def main():
     """The main function to run the game."""
@@ -34,7 +44,7 @@ def main():
     my_board = Board(width=0, height=0) # Size will be set by the loader
 
     # Load the level data into the board
-    my_board.load_level_from_data(level_2_data)
+    my_board.load_level_from_data(level_3_data)
 
     # The main game loop (this is the same as before)
     while True:
@@ -47,21 +57,29 @@ def main():
             break # Exit the loop
 
         # 3. Get user input
-        choice = input("Enter your move (W/A/S/D or R to reset): ").lower()
+            # --- ADD THIS NEW INPUT OPTION ---
+        choice = input("Enter your move (W/A/S/D),  R to reset level: ").lower()
+        
+        
 
+        
         # 4. Process the input
         if choice == 'w':
             my_board.move_player(0, -1)
+        
+        elif choice == 'r':
+            print("\n--- Resetting Level ---")
+            main() # Call the whole function again to reset
+            return
         elif choice == 's':
             my_board.move_player(0, 1)
         elif choice == 'a':
             my_board.move_player(-1, 0)
         elif choice == 'd':
             my_board.move_player(1, 0)
-        elif choice == 'r':
-            print("\n--- Resetting Level ---")
-            my_board.load_level_from_data(level_1_data)
+        
 
 # This line makes the script runnable
 if __name__ == "__main__":
     main()
+

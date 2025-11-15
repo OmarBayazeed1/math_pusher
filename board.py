@@ -74,43 +74,39 @@ class Board:
         
         return False
     
-    # In board.py, replace your entire check_for_solved_goal method with this:
-
     def check_for_solved_goal(self):
         """
-        Uses the new expression evaluator to check for a solved goal.
+        Finds all expressions on the board (horizontal and vertical, length >= 3),
+        evaluates each and if any matches any goal's target_value,
+        removes the matching goal block(s) and returns True. Otherwise returns False.
         """
-        # 1. Find an expression on the board.
-        expression_str = self._find_expression_on_board()
-         # --- DEBUG PRINT 1 ---
-        print(f"DEBUG: Found expression string: '{expression_str}'")
-        # 2. If no expression, we can't solve anything.
-        if not expression_str:
-            print("DEBUG: No expression found. Exiting check.")
+        expressions = self._find_expression_on_board()
+        print(f"DEBUG: Found {len(expressions)} expression(s) on board: {[e['expr'] for e in expressions]}")
+        if not expressions:
             return False
 
-        # 3. Get the first goal to check against.
         if not self.goal_blocks:
             print("DEBUG: No goal blocks on the board. Exiting check.")
             return False
-        goal = self.goal_blocks[0]
 
-        print(f"\nFound expression: {expression_str}")
+        # Try each found expression against all goals
+        for expr_info in expressions:
+            expr_str = expr_info['expr']
+            print(f"DEBUG: Evaluating expression {expr_str} (dir={expr_info.get('dir')}, positions={expr_info.get('positions')})")
+            calculated_result = self.evaluate_expression(expr_str)
+            print(f"DEBUG: Result of '{expr_str}' = {calculated_result}")
 
-        # 4. Evaluate the expression using your powerful function!
-        calculated_result = self.evaluate_expression(expression_str)
-        print(f"DEBUG: Calculated result from expression is: {calculated_result}")
-        # 5. Compare the result to the goal's target value.
-        if calculated_result == goal.target_value:
-            print(f"!!! GOAL SOLVED !!!")
-            print(f"Solved: {expression_str} = {calculated_result}")
-            
-            # 6. If it matches, remove the goal block and unlock the hole.
-            self.remove_object(goal)
-            
-            return True
-         # If we get here, no goal was solved
-        
+            # collect goals that match this expression result
+            matching_goals = [g for g in self.goal_blocks if g.target_value == calculated_result]
+            if matching_goals:
+                # remove all matching goals (if there are multiple with the same target)
+                for g in matching_goals:
+                    self.remove_object(g)
+                    print(f"DEBUG: Removed goal with target {g.target_value} at {g.position}")
+                print(f"!!! GOAL(S) SOLVED by '{expr_str}' !!!")
+                return True
+
+        # No expression solved any goal
         return False
 
     
@@ -207,7 +203,6 @@ class Board:
         """
         self.grid[y][x] = value
     
-
     def show_board(self):
         """
         Prints a clean, aligned 2D visual representation of the board.
@@ -252,7 +247,7 @@ class Board:
         return self.player.position.x == self.hole.position.x and self.player.position.y == self.hole.position.y
     def evaluate_expression(self,expr):
         """
-        Evaluates a mathematical expression string like "2+3*4".
+        Evaluates a mathematical expression string like "2+3*4" or "1+1+1".
         Handles operator precedence.
         """
         # Remove spaces
@@ -309,9 +304,8 @@ class Board:
             i += 2
 
         return int(result) # Ensure the result is an integer
-    
-    
-    
+        
+        
 
     def load_level_from_data(self, level_data: list[list[str]]):
         """
@@ -325,7 +319,7 @@ class Board:
         # Loop through the data and create objects
         for y, row in enumerate(level_data):
             for x, emoji in enumerate(row):
-                if emoji in ['0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣']:
+                if emoji in ['3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','0️⃣','1️⃣','2️⃣']:
                     target_value=int(emoji[0])
                     self.add_goal_block(GoalBlock(x,y,target_value))
                 # 1. Handle digits first (for NumberBlocks)
@@ -352,35 +346,61 @@ class Board:
         print("Level loading complete.\n")   
     def _find_expression_on_board(self):
         """
-        Scans the board to find a simple Num-Op-Num pattern.
-        Returns the expression as a string (e.g., "2+3") or None if not found.
-        This is a simplified version. A more advanced version could scan in all directions.
+        Scans the board to find Num-Op-Num patterns, including chains like 1+1+1.
+        Returns a list of dicts with keys:
+          - 'expr': the expression string (e.g., "1+1+1")
+          - 'positions': list of (x,y) tuples for the tiles in order
+          - 'dir': 'horizontal' or 'vertical'
+        The search checks left->right and top->bottom and returns all (deduplicated) matches found.
         """
-            # --- 1. Check for Horizontal Patterns (left-to-right) ---
-        for y in range(self.height):
-            for x in range(self.width - 2): # -2 because we need space for 3 items
-                obj1 = self.get_object_at(x, y)
-                obj_op = self.get_object_at(x + 1, y)
-                obj2 = self.get_object_at(x + 2, y)
+        expressions = []
+        seen = set()  # dedupe by positions tuple
 
-                if (isinstance(obj1, NumberBlock) and
-                    isinstance(obj_op, OperatorBlock) and
-                    isinstance(obj2, NumberBlock)):
-                    
-                    return (obj1.value, obj_op.operator, obj2.value, 'horizontal')
-            # 2) Look for vertical patterns (top -> bottom)
-                for x in range(self.width):
-                    for y in range(self.height - 2):
-                        obj1 = self.get_object_at(x, y)
-                        obj2 = self.get_object_at(x, y + 1)
-                        obj3 = self.get_object_at(x, y + 2)
-    
-                        if (isinstance(obj1, NumberBlock) and
-                            isinstance(obj2, OperatorBlock) and
-                            isinstance(obj3, NumberBlock)):
-        
-                            # Build the expression string in top->bottom order
-                            expr_str = f"{obj1.value}{obj2.operator}{obj3.value}"
-                            return expr_str
- 
-        return None # No expression found
+        # directions: (dx, dy, name)
+        directions = [(1, 0, 'horizontal'), (0, 1, 'vertical')]
+
+        for y in range(self.height):
+            for x in range(self.width):
+                start_obj = self.get_object_at(x, y)
+                if not isinstance(start_obj, NumberBlock):
+                    continue
+
+                for dx, dy, dir_name in directions:
+                    positions = [(x, y)]
+                    parts = [str(start_obj.value)]
+                    expect_operator = True
+                    nx, ny = x + dx, y + dy
+
+                    while 0 <= nx < self.width and 0 <= ny < self.height:
+                        obj = self.get_object_at(nx, ny)
+                        if expect_operator:
+                            if isinstance(obj, OperatorBlock):
+                                parts.append(obj.operator)
+                                positions.append((nx, ny))
+                                expect_operator = False
+                                nx += dx; ny += dy
+                                continue
+                            else:
+                                break
+                        else:  # expect a number
+                            if isinstance(obj, NumberBlock):
+                                parts.append(str(obj.value))
+                                positions.append((nx, ny))
+                                expect_operator = True
+                                nx += dx; ny += dy
+                                continue
+                            else:
+                                break
+
+                    # valid chain must be at least Num Op Num -> parts len >= 3 and last part must be a number
+                    if len(parts) >= 3 and parts[-1].lstrip('-').isdigit():
+                        key = tuple(positions)
+                        if key not in seen:
+                            seen.add(key)
+                            expressions.append({
+                                'expr': ''.join(parts),
+                                'positions': positions,
+                                'dir': dir_name
+                            })
+
+        return expressions

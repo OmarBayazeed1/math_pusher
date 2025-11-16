@@ -35,7 +35,16 @@ level_3_data =[ ['🧱','🧱','🟪','🟪','🟪','🧱','🧱','🧱','🧱',
                 ['🟪','1','🟪','2','🟪','3','🟪','🧱','🧱','🧱','🧱','🧱','🧱'],
                 ['🟪','🟪','🟪','🟪','🟪','🟪','🟪','🧱','🧱','🧱','🧱','🧱','🧱'], 
             ]
-
+level_4_data =[ ['🟪','🟪','🧱','🕳️','🧱','🟪','🟪'],
+                ['🟪','🟪','🧱','6️⃣','🧱','🟪','🟪'],
+                ['🟪','🟪','🟪','🤖','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪' ,'🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','1','+','2','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','2','+','3','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'], 
+            ]
 
 # --- The Main Game ---
 def main():
@@ -44,7 +53,7 @@ def main():
     my_board = Board(width=0, height=0) # Size will be set by the loader
 
     # Load the level data into the board
-    my_board.load_level_from_data(level_3_data)
+    my_board.load_level_from_data(level_4_data)
 
     # The main game loop (this is the same as before)
     while True:

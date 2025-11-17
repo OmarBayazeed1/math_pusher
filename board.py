@@ -126,7 +126,7 @@ class Board:
             if operator_block.position.x==x and operator_block.position.y==y:
                 return operator_block
         return None
-    def move_player(self, direction_x, direction_y):
+    '''def move_player(self, direction_x, direction_y):
         if not self.player:
             print("Board: There's no player to move!")
             return
@@ -187,8 +187,131 @@ class Board:
             else:
                 print('Board: Can not push there is somthing behind the block')
                 return    
-    
+    '''
+    def move_player(self, direction_x, direction_y):
+        """
+        Move the player. This version supports pushing a contiguous chain of
+        NumberBlock/OperatorBlock tiles in the given direction as long as the
+        chain can move one cell and the destination cell is empty (or otherwise
+        pushable — here we only allow moving into empty spaces).
+        Rules:
+        - If the destination (new player cell) is empty -> move player.
+        - If it's a Wall or a closed Hole -> cannot move.
+        - If it's a pushable block (NumberBlock or OperatorBlock), build the
+            contiguous chain in the push direction. If the cell after the last
+            pushable block is empty (and inside the board) then shift the whole
+            chain one cell in the push direction (move farthest block first),
+            then move the player into the first block's old position.
+        - Otherwise the push is invalid.
+        """
+        if not self.player:
+            print("Board: There's no player to move!")
+            return
 
+        # 1. Calculate the player's NEW potential position
+        new_x = self.player.position.x + direction_x
+        new_y = self.player.position.y + direction_y
+        new_position = Coordinate(new_x, new_y)
+
+        print(f"\nBoard: Player wants to move to {new_position}.")
+
+        # 2. Check if the new position is outside the board boundaries
+        if not (0 <= new_x < self.width and 0 <= new_y < self.height):
+            print("Board: Cannot move! That's off the board.")
+            return
+
+        target_object = self.get_object_at(new_position.x, new_position.y)
+
+        # If target is a hole
+        if isinstance(target_object, Hole):
+            if not target_object.is_passable:
+                print('Board: The hole is closed ! solve the goal first!')
+                return
+            # If hole is passable, allow moving into it
+            self.player.position = new_position
+            self.check_for_solved_goal()
+            return
+
+        # Empty cell -> just move
+        if target_object is None:
+            print('The square is Empty, you can move the player..')
+            self.player.position = new_position
+            self.check_for_solved_goal()
+            return
+
+        # Wall blocks movement
+        if isinstance(target_object, Wall):
+            print('Board: Can\'t move, there is a WALL!')
+            return
+
+        # Handle pushing for NumberBlock or OperatorBlock (supports chains)
+        if isinstance(target_object, (OperatorBlock, NumberBlock)):
+            dx, dy = direction_x, direction_y
+
+            # Build contiguous chain of pushable blocks starting from the target cell
+            chain = []  # list of (x, y, object)
+            cx, cy = new_position.x, new_position.y
+            while 0 <= cx < self.width and 0 <= cy < self.height:
+                obj = self.get_object_at(cx, cy)
+                if isinstance(obj, (NumberBlock, OperatorBlock)):
+                    chain.append((cx, cy, obj))
+                    cx += dx
+                    cy += dy
+                    continue
+                else:
+                    break
+
+            # If chain is empty (shouldn't happen because target_object is pushable),
+            # treat as cannot push
+            if not chain:
+                print('Board: Nothing to push.')
+                return
+
+            # Now (cx, cy) is the first cell after the last pushable block
+            # Check bounds and occupancy
+            if not (0 <= cx < self.width and 0 <= cy < self.height):
+                print('Board: Can not push there is something off the board behind the block(s).')
+                return
+
+            dest_obj = self.get_object_at(cx, cy)
+            # Destination must be empty to shift the chain
+            if dest_obj is None:
+                # Move blocks from farthest to nearest to avoid overwriting
+                for bx, by, obj in reversed(chain):
+                    obj.position = Coordinate(bx + dx, by + dy)
+                # Move player into the first block's old position
+                self.player.position = new_position
+                print('Board: Push succeeded; moved chain and player.')
+                self.check_for_solved_goal()
+                return
+            # If destination is a passable hole (rare), allow block to fall in? treat similar to empty? Here we treat hole as blocked unless passable semantics needed.
+            if isinstance(dest_obj, Hole):
+                if dest_obj.is_passable:
+                    # allow moving block into hole (remove block), then move player
+                    far_bx, far_by, far_obj = chain[-1]
+                    # Remove the last block from board (simulate falling into hole)
+                    if isinstance(far_obj, NumberBlock) and far_obj in self.number_blocks:
+                        self.number_blocks.remove(far_obj)
+                    elif isinstance(far_obj, OperatorBlock) and far_obj in self.operator_blocks:
+                        self.operator_blocks.remove(far_obj)
+                    # Shift remaining blocks forward
+                    for bx, by, obj in reversed(chain[:-1]):
+                        obj.position = Coordinate(bx + dx, by + dy)
+                    self.player.position = new_position
+                    print('Board: Pushed block(s) and one fell into a passable hole.')
+                    self.check_for_solved_goal()
+                    return
+                else:
+                    print('Board: Can not push there is a closed hole behind the block(s).')
+                    return
+
+            # If destination is a wall, goal, player, or any other non-pushable, block the push
+            print('Board: Can not push there is something behind the block(s)')
+            return
+
+        # If target is any other non-handled object, block movement
+        print('Board: Can not move there.')
+        return
     def _get_cell(self, x, y):
         """
         A helper to get the grid cell at a natural (x, y) coordinate.

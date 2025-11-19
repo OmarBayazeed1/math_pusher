@@ -1,11 +1,4 @@
-"""
-Level loader utilities.
 
-Place this file at the project root (same folder as board.py and main_game.py).
-Usage:
-    from load_level import load_level_from_file
-    board = load_level_from_file('field5.json')
-"""
 
 import json
 import os

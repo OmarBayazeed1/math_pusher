@@ -1,13 +1,33 @@
-Player:
-    position=player has a coordinate
-    
-Wall:
-    position = Wall has a coordinate
-board:
-    width
-    height
-    has a Player
-    has a list of Wall
-
-     
-
+coordinate:    (x,y)
+game_object:   has a coordinate
+Player:        is a game_object
+Wall:          is a game_object
+operator_block:is a game_object and has an operator that is in '+-*/'
+number_block:  is a game_object and has a value that is between 0 and 9
+hole        :  is a game_object
+goal_block  :  is a game_object and has a target_value
+board       :  has a width,height and has a player , hole and has list of walls 
+                                                                and list of operator
+                                                                and list of operator_block
+                                                                and list of number_block
+                                                                and dict of some emoj
+                it contains methods:
+                                    add_player(player): it sets the input player obj to the board player attribute
+                                    add_wall(wall)    : it sets the input wall obj to the board list of walls attribute
+                                    add_hole(hole)    : it sets the input hole obj to the board hole attribute
+                                    add_number_block(number_block):it sets the input number_block obj to the board list of number_blocks attribute
+                                    add_goal_block(goal_block):it sets the input goal_block obj to the board list of goal_blocks attribute
+                                    add_operator_block(operator_block):it sets the input operator_block obj to the board list of operator_blocks attribute
+                                    
+                                    show_status()     : prints how number of objects like walls and operatores etc, we have.
+                                    remove_object(obj_to_remove):   it takes an object and 
+                                                                    check that is an instance from goal_block class
+                                                                    then remove it from the list of goal_blocks.
+                                    get_object_at(x,y): it compares the input x,y with the the x,y of all objects on the board.
+                                                        and then return it.
+                                    show_board(): initial the grid with emojs and prints the board in a cool way.used tabulate module
+                                    load_level_from_data(list[list[str]]): reads a 2d list of emojs and add the meaning of each emoj 
+                                                                           to the corrisponding attribute on the board 
+                                                                           like, 🤖 is a player.
+                                    is_won(): check if the x,y of the player are same of the hole.
+                                    

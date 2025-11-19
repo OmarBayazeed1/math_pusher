@@ -20,7 +20,7 @@ class Board:
         self.number_blocks: list[NumberBlock]=[]
         self.goal_blocks: list[GoalBlock]=[]
         self.operator_blocks: list[OperatorBlock]=[]
-        self.grid = [['🟪' for _ in range(self.width)] for _ in range(self.height)]
+        #self.grid = [['🟪' for _ in range(self.width)] for _ in range(self.height)]
         self.EMOJI_MAP = {
         '🟪': None, # Empty space, do nothing
         '🧱': Wall,
@@ -65,7 +65,7 @@ class Board:
         print(f'---------------')
 
     def remove_object(self, object_to_remove):
-        """Removes a given object from the board."""
+        
         if isinstance(object_to_remove, GoalBlock):
             if object_to_remove in self.goal_blocks:
                 self.goal_blocks.remove(object_to_remove)
@@ -126,68 +126,7 @@ class Board:
             if operator_block.position.x==x and operator_block.position.y==y:
                 return operator_block
         return None
-    '''def move_player(self, direction_x, direction_y):
-        if not self.player:
-            print("Board: There's no player to move!")
-            return
-
-        # 1. Calculate the player's NEW potential position
-        new_x = self.player.position.x + direction_x
-        new_y = self.player.position.y + direction_y
-        new_position = Coordinate(new_x, new_y)
-
-        print(f"\nBoard: Player wants to move to {new_position}.")
-
-        # 2. Check if the new position is outside the board boundaries
-        if not (0 <= new_x < self.width and 0 <= new_y < self.height):
-            print("Board: Cannot move! That's off the board.")
-            return
-        target_object=self.get_object_at(new_position.x,new_position.y)
-        if isinstance(target_object,Hole):
-            if not target_object.is_passable:
-                print('Board: The hole is closed ! solve the goal first!')
-                return
-        if target_object is None:
-            print('The square is Empty , you can move the player..')
-            self.player.position=new_position
-            self.check_for_solved_goal()
-            
-            return
-        if isinstance(target_object,Wall):
-            print('Board: Can\'t move, there is a WALL!')
-            return
-        
-        if isinstance(target_object,OperatorBlock):
-            position_behind_nblock=Coordinate(new_position.x + direction_x,new_position.y + direction_y)
-        
-            if (0 <= position_behind_nblock.x < self.width and 0 <= position_behind_nblock.y < self.height and self.get_object_at(position_behind_nblock.x,position_behind_nblock.y) is None):
-                print('Board: Push is valid ..')
-                print('Board: moving the the block..')
-                print('Board: Moving the player')
-                target_object.position=position_behind_nblock
-                self.player.position=new_position
-                self.check_for_solved_goal()
-                
-                return
-            else:
-                print('Board: Can not push there is somthing behind the block')
-                return    
-        if isinstance(target_object,NumberBlock):
-            position_behind_nblock=Coordinate(new_position.x + direction_x,new_position.y + direction_y)
-        
-            if (0 <= position_behind_nblock.x < self.width and 0 <= position_behind_nblock.y < self.height and self.get_object_at(position_behind_nblock.x,position_behind_nblock.y) is None):
-                print('Board: Push is valid ..')
-                print('Board: moving the the block..')
-                print('Board: Moving the player')
-                target_object.position=position_behind_nblock
-                self.player.position=new_position
-                self.check_for_solved_goal()
-                
-                return
-            else:
-                print('Board: Can not push there is somthing behind the block')
-                return    
-    '''
+    
     def move_player(self, direction_x, direction_y):
         """
         Move the player. This version supports pushing a contiguous chain of
@@ -312,44 +251,27 @@ class Board:
         # If target is any other non-handled object, block movement
         print('Board: Can not move there.')
         return
-    def _get_cell(self, x, y):
-        """
-        A helper to get the grid cell at a natural (x, y) coordinate.
-        This makes the rest of our code much more readable.
-        """
-        # This is the only place we have to remember the ugly [y][x] pattern.
-        return self.grid[y][x]
-
-    def _set_cell(self, x, y, value):
-        """
-        A helper to set the grid cell at a natural (x, y) coordinate.
-        """
-        self.grid[y][x] = value
+    
     
     def show_board(self):
-        """
-        Prints a clean, aligned 2D visual representation of the board.
-        This version is more reliable than tabulate.
-        """
-        # 1. Create an empty grid, with padding for alignment
+        
+        
         grid = [[' 🟪 ' for _ in range(self.width)] for _ in range(self.height)]
 
-        # 2. Place all the objects on the grid
+        
         if self.hole:
             x, y = self.hole.position.x, self.hole.position.y
-            grid[y][x] = ' 🕳️ ' # Padded hole
-
+            grid[y][x] = ' 🕳️ ' 
         for wall in self.walls:
             x, y = wall.position.x, wall.position.y
-            grid[y][x] = ' 🧱 ' # Padded wall
-
+            grid[y][x] = ' 🧱 '
         for block in self.number_blocks:
             x, y = block.position.x, block.position.y
-            grid[y][x] = f' {block.value} ' # Padded number
+            grid[y][x] = f' {block.value} ' 
 
         for op_block in self.operator_blocks:
             x, y = op_block.position.x, op_block.position.y
-            grid[y][x] = f' {op_block.operator} ' # Padded operator
+            grid[y][x] = f' {op_block.operator} ' 
 
         for goal_block in self.goal_blocks:
             x, y = goal_block.position.x, goal_block.position.y
@@ -358,7 +280,7 @@ class Board:
 
         if self.player:
             x, y = self.player.position.x, self.player.position.y
-            grid[y][x] = ' 🤖 ' # Padded player
+            grid[y][x] = ' 🤖 ' 
 
         # 3. Print the grid row by row
         print("\n--- Board Visual ---")
@@ -431,10 +353,7 @@ class Board:
         
 
     def load_level_from_data(self, level_data: list[list[str]]):
-        """
-        Reads level data from a 2D list of emojis and creates game objects.
-        This version uses the GoalType Enum for robustness.
-        """
+       
         self.height = len(level_data)
         self.width = max(len(row) for row in level_data)
         print(f"Loading a level of size {self.width}x{self.height}...")
@@ -477,14 +396,18 @@ class Board:
         The search checks left->right and top->bottom and returns all (deduplicated) matches found.
         """
         expressions = []
-        seen = set()  # dedupe by positions tuple
+        # to ensure no duplicate expressinons
+        seen = set()  
 
         # directions: (dx, dy, name)
+        # horizontal left --> right
+        # vertical   top --> down
         directions = [(1, 0, 'horizontal'), (0, 1, 'vertical')]
 
         for y in range(self.height):
             for x in range(self.width):
                 start_obj = self.get_object_at(x, y)
+                #expression must start with a number
                 if not isinstance(start_obj, NumberBlock):
                     continue
 

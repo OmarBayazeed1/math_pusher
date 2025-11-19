@@ -79,20 +79,20 @@ level_7_data =[ ['🧱','🧱','🧱','1️⃣','2️⃣','🕳️','🧱'],
 # --- The Main Game ---
 def main():
     """The main function to run the game."""
-    '''
+    
     # Create a new board
-    my_board = Board(width=0, height=0) # Size will be set by the loader
+    #my_board = Board(width=0, height=0) # Size will be set by the loader
 
     # Load the level data into the board
-    my_board.load_level_from_data(level_7_data)
-    '''
+    #my_board.load_level_from_data(level_2_data)
+    
     project_root=os.path.dirname(__file__)
     level_file=os.path.join(project_root,'field5.json')
     try:
         my_board=load_level_from_file(level_file)
     except Exception as e:
         print(f'Falied to load level from  {level_file}:{e}')
-    # The main game loop (this is the same as before)
+    
     while True:
         # 1. Display the board
         my_board.show_board()
@@ -103,7 +103,7 @@ def main():
             break # Exit the loop
 
         # 3. Get user input
-            # --- ADD THIS NEW INPUT OPTION ---
+            
         choice = input("Enter your move (W/A/S/D),  R to reset level, Q to quite ").lower()
         
         
@@ -120,21 +120,23 @@ def main():
             my_board.move_player(1, 0)
         elif choice == 'r':
             print("\n--- Resetting Level ---")
-            #main() # Call the whole function again to reset
+            
             try:
+            #main()
+            #return
                 my_board=load_level_from_file(level_file)
                 print('\n-----Level Reset----\n')
             except Exception as e:
                 print(f'Failed to reload level:{e}')
                 return
-            #return
+            
         elif choice=='q':
             print('Quite the game')
             break
         else:
             print('Invalid Input Enter your move (W/A/S/D),  R to reset level, Q to quite ')
 
-# This line makes the script runnable
+
 if __name__ == "__main__":
     main()
 

@@ -78,13 +78,13 @@ level_7_data =[ ['🧱','🧱','🧱','1️⃣','2️⃣','🕳️','🧱'],
             ]
 # --- The Main Game ---
 def main():
-    """The main function to run the game."""
+    
     
     # Create a new board
     #my_board = Board(width=0, height=0) # Size will be set by the loader
 
     # Load the level data into the board
-    #my_board.load_level_from_data(level_2_data)
+    #my_board.load_level_from_data(level_7_data)
     
     project_root=os.path.dirname(__file__)
     level_file=os.path.join(project_root,'field5.json')

@@ -75,11 +75,7 @@ class Board:
         return False
     
     def check_for_solved_goal(self):
-        """
-        Finds all expressions on the board (horizontal and vertical, length >= 3),
-        evaluates each and if any matches any goal's target_value,
-        removes the matching goal block(s) and returns True. Otherwise returns False.
-        """
+        
         expressions = self._find_expression_on_board()
         print(f"DEBUG: Found {len(expressions)} expression(s) on board: {[e['expr'] for e in expressions]}")
         if not expressions:
@@ -128,21 +124,7 @@ class Board:
         return None
     
     def move_player(self, direction_x, direction_y):
-        """
-        Move the player. This version supports pushing a contiguous chain of
-        NumberBlock/OperatorBlock tiles in the given direction as long as the
-        chain can move one cell and the destination cell is empty (or otherwise
-        pushable — here we only allow moving into empty spaces).
-        Rules:
-        - If the destination (new player cell) is empty -> move player.
-        - If it's a Wall or a closed Hole -> cannot move.
-        - If it's a pushable block (NumberBlock or OperatorBlock), build the
-            contiguous chain in the push direction. If the cell after the last
-            pushable block is empty (and inside the board) then shift the whole
-            chain one cell in the push direction (move farthest block first),
-            then move the player into the first block's old position.
-        - Otherwise the push is invalid.
-        """
+       
         if not self.player:
             print("Board: There's no player to move!")
             return
@@ -163,10 +145,7 @@ class Board:
 
         # If target is a hole
         if isinstance(target_object, Hole):
-            if not target_object.is_passable:
-                print('Board: The hole is closed ! solve the goal first!')
-                return
-            # If hole is passable, allow moving into it
+            
             self.player.position = new_position
             self.check_for_solved_goal()
             return
@@ -291,10 +270,7 @@ class Board:
             return False # No hole, can't win
         return self.player.position.x == self.hole.position.x and self.player.position.y == self.hole.position.y
     def evaluate_expression(self,expr):
-        """
-        Evaluates a mathematical expression string like "2+3*4" or "1+1+1".
-        Handles operator precedence.
-        """
+        
         # Remove spaces
         expr = expr.replace(' ', '')
 
@@ -387,14 +363,7 @@ class Board:
                 
         print("Level loading complete.\n")   
     def _find_expression_on_board(self):
-        """
-        Scans the board to find Num-Op-Num patterns, including chains like 1+1+1.
-        Returns a list of dicts with keys:
-          - 'expr': the expression string (e.g., "1+1+1")
-          - 'positions': list of (x,y) tuples for the tiles in order
-          - 'dir': 'horizontal' or 'vertical'
-        The search checks left->right and top->bottom and returns all (deduplicated) matches found.
-        """
+        
         expressions = []
         # to ensure no duplicate expressinons
         seen = set()  

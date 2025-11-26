@@ -12,6 +12,11 @@ from goal_block import GoalBlock
 from hole import Hole
 
 # --- Your Level Data ---
+data =[ ['🟪','🟪','2️⃣','🕳️'],
+                ['5','-','🟪','🧱'],
+                ['🤖','🟪','3','🟪'],
+                [ '🟪','🟪','🟪','🟪'],
+            ]
 level_1_data =[['🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🧱','🟪','🟪'],
                 ['🟪','🟪','🟪','🟪','🟪','1','🟪','🟪','🟪','🟪','🟪','🧱','🧱','🧱'],
                 ['🟪','🟪','🟪','🤖','🟪','🟪','🟪','+','🟪','🟪','🟪','3️⃣','🟪','🕳️'],
@@ -81,22 +86,21 @@ def main():
     
     
     # Create a new board
-    #my_board = Board(width=0, height=0) # Size will be set by the loader
+    my_board = Board(width=0, height=0) # Size will be set by the loader
 
     # Load the level data into the board
-    #my_board.load_level_from_data(level_7_data)
+    my_board.load_level_from_data(data)
     
-    project_root=os.path.dirname(__file__)
-    level_file=os.path.join(project_root,'field5.json')
-    try:
-        my_board=load_level_from_file(level_file)
-    except Exception as e:
-        print(f'Falied to load level from  {level_file}:{e}')
+   # project_root=os.path.dirname(__file__)
+   # level_file=os.path.join(project_root,'field5.json')
+   # try:
+   #     my_board=load_level_from_file(level_file)
+   # except Exception as e:
+   #     print(f'Falied to load level from  {level_file}:{e}')
     
     while True:
         # 1. Display the board
         my_board.show_board()
-
         # 2. Check for a win
         if my_board.is_game_won():
             print("\n🎉🎉🎉 CONGRATULATIONS! YOU HAVE WON THE GAME! 🎉🎉🎉")
@@ -122,9 +126,9 @@ def main():
             print("\n--- Resetting Level ---")
             
             try:
-            #main()
-            #return
-                my_board=load_level_from_file(level_file)
+                main()
+                return
+            #    my_board=load_level_from_file(level_file)
                 print('\n-----Level Reset----\n')
             except Exception as e:
                 print(f'Failed to reload level:{e}')

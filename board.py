@@ -8,7 +8,7 @@ from number_block import NumberBlock
 from coordinate import Coordinate
 from goal_block import GoalBlock
 from operator_block import OperatorBlock
-
+import copy
 
 class Board:
     def __init__(self,width:int,height:int):
@@ -20,7 +20,9 @@ class Board:
         self.number_blocks: list[NumberBlock]=[]
         self.goal_blocks: list[GoalBlock]=[]
         self.operator_blocks: list[OperatorBlock]=[]
-        #self.grid = [['🟪' for _ in range(self.width)] for _ in range(self.height)]
+        self.grid = [["" for _ in range(self.width)] for _ in range(self.height)]
+        
+        
         self.EMOJI_MAP = {
         '🟪': None, # Empty space, do nothing
         '🧱': Wall,
@@ -31,6 +33,81 @@ class Board:
         '*': OperatorBlock,
         '/': OperatorBlock,
          }
+    
+   
+    
+
+    def clone(self):
+        return copy.deepcopy(self)
+    '''def clone(self):
+        new_board = Board(self.width, self.height)
+
+        # Copy player
+        if self.player:
+            new_board.player = Player(self.player.position.x, self.player.position.y)
+
+        # Copy blocks
+        new_board.number_blocks = [NumberBlock(b.position.x, b.position.y, b.value) for b in self.number_blocks]
+        new_board.operator_blocks = [OperatorBlock(b.position.x, b.position.y, b.operator) for b in self.operator_blocks]
+        new_board.goal_blocks = [GoalBlock(b.position.x, b.position.y, b.target_value) for b in self.goal_blocks]
+
+        # Copy hole
+        if self.hole:
+            new_board.hole = Hole(self.hole.position.x, self.hole.position.y)
+
+        # Copy walls
+        new_board.walls = [Wall(w.position.x, w.position.y) for w in self.walls]
+
+        # Copy grid (optional, if you use it for display)
+        new_board.grid = [row[:] for row in self.grid]
+
+        return new_board
+'''
+    def __eq__(self, other):
+        if not isinstance(other, Board):
+            return False
+
+        return (
+            (self.player.position if self.player else None) ==
+            (other.player.position if other.player else None)
+            and {(b.position, b.value) for b in self.number_blocks} ==
+                {(b.position, b.value) for b in other.number_blocks}
+            and {(b.position, b.operator) for b in self.operator_blocks} ==
+                {(b.position, b.operator) for b in other.operator_blocks}
+            and {(b.position, b.target_value) for b in self.goal_blocks} ==
+                {(b.position, b.target_value) for b in other.goal_blocks}
+            and (self.hole.position if self.hole else None) ==
+                (other.hole.position if other.hole else None)
+            and {w.position for w in self.walls} ==
+                {w.position for w in other.walls}
+        )
+
+    def __hash__(self):
+        return hash((
+            (self.player.position if self.player else None),
+            frozenset((b.position, b.value) for b in self.number_blocks),
+            frozenset((b.position, b.operator) for b in self.operator_blocks),
+            frozenset((b.position, b.target_value) for b in self.goal_blocks),
+            (self.hole.position if self.hole else None),
+            frozenset(w.position for w in self.walls)
+        ))
+
+
+
+    def get_possible_states(self):
+        states = []
+        directions = [(1,0), (-1,0), (0,1), (0,-1)]
+        for dx, dy in directions:
+            new_board = self.clone()
+            before = (new_board.player.position.x, new_board.player.position.y)
+            new_board.move_player(dx, dy)
+            after = (new_board.player.position.x, new_board.player.position.y)
+            if before != after:
+                states.append(new_board)
+        return states
+
+
+
     def add_player(self,player:Player):
         self.player=player
         print(f'Board: player has been add to the game')
@@ -122,7 +199,9 @@ class Board:
             if operator_block.position.x==x and operator_block.position.y==y:
                 return operator_block
         return None
-    
+    def in_bounds(self,x,y):
+        return (0 <= x< self.width and 0 <=y < self.height)
+        
     def move_player(self, direction_x, direction_y):
        
         if not self.player:
@@ -137,9 +216,10 @@ class Board:
         print(f"\nBoard: Player wants to move to {new_position}.")
 
         # 2. Check if the new position is outside the board boundaries
-        if not (0 <= new_x < self.width and 0 <= new_y < self.height):
+        if not self.in_bounds(new_x,new_y):
             print("Board: Cannot move! That's off the board.")
             return
+        
 
         target_object = self.get_object_at(new_position.x, new_position.y)
 
@@ -169,7 +249,8 @@ class Board:
             # Build contiguous chain of pushable blocks starting from the target cell
             chain = []  # list of (x, y, object)
             cx, cy = new_position.x, new_position.y
-            while 0 <= cx < self.width and 0 <= cy < self.height:
+            while self.in_bounds(cx,cy):
+            #while 0 <= cx < self.width and 0 <= cy < self.height:
                 obj = self.get_object_at(cx, cy)
                 if isinstance(obj, (NumberBlock, OperatorBlock)):
                     chain.append((cx, cy, obj))
@@ -231,40 +312,69 @@ class Board:
         print('Board: Can not move there.')
         return
     
-    
     def show_board(self):
-        
-        
-        grid = [[' 🟪 ' for _ in range(self.width)] for _ in range(self.height)]
+        # Reset grid each time to avoid leftover values
+        self.grid = [["🟪" for _ in range(self.width)] for _ in range(self.height)]
 
+        def safe_place(x, y, symbol):
+            if 0 <= y < self.height and 0 <= x < self.width:
+                self.grid[y][x] = symbol
+            else:
+                print(f"⚠️ Warning: Tried to place {symbol} at ({x},{y}) outside grid")
+
+        if self.hole:
+            safe_place(self.hole.position.x, self.hole.position.y, ' 🕳️ ')
+
+        for wall in self.walls:
+            safe_place(wall.position.x, wall.position.y, ' 🧱 ')
+
+        for block in self.number_blocks:
+            safe_place(block.position.x, block.position.y, f' {block.value} ')
+
+        for op_block in self.operator_blocks:
+            safe_place(op_block.position.x, op_block.position.y, f' {op_block.operator} ')
+
+        for goal_block in self.goal_blocks:
+            safe_place(goal_block.position.x, goal_block.position.y, f' {goal_block.target_value} ')
+
+        if self.player:
+            safe_place(self.player.position.x, self.player.position.y, ' 🤖 ')
+
+        print("\n--- Board Visual ---")
+        print(tabulate(self.grid, tablefmt='grid'))
+        print("--------------------\n")
+
+    '''def show_board(self):
+        #self.grid = [[ '🟪' for _ in range(self.width)] for _ in range(self.height)]
         
         if self.hole:
             x, y = self.hole.position.x, self.hole.position.y
-            grid[y][x] = ' 🕳️ ' 
+            self.grid[y][x] = ' 🕳️ ' 
         for wall in self.walls:
             x, y = wall.position.x, wall.position.y
-            grid[y][x] = ' 🧱 '
+            self.grid[y][x] = ' 🧱 '
         for block in self.number_blocks:
             x, y = block.position.x, block.position.y
-            grid[y][x] = f' {block.value} ' 
+            self.grid[y][x] = f' {block.value} ' 
 
         for op_block in self.operator_blocks:
             x, y = op_block.position.x, op_block.position.y
-            grid[y][x] = f' {op_block.operator} ' 
+            self.grid[y][x] = f' {op_block.operator} ' 
 
         for goal_block in self.goal_blocks:
             x, y = goal_block.position.x, goal_block.position.y
             
-            grid[y][x] = f' {goal_block.target_value} '
+            self.grid[y][x] = f' {goal_block.target_value} '
 
         if self.player:
             x, y = self.player.position.x, self.player.position.y
-            grid[y][x] = ' 🤖 ' 
+            self.grid[y][x] = ' 🤖 ' 
 
         # 3. Print the grid row by row
         print("\n--- Board Visual ---")
-        print(tabulate(grid,tablefmt='grid'))
-        print("--------------------\n")    
+        print(tabulate(self.grid,tablefmt='grid'))
+        print("--------------------\n")
+'''
     def is_game_won(self) -> bool:
         if not self.hole:
             return False # No hole, can't win

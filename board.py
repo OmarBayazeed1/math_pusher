@@ -1,492 +1,329 @@
 import re
+from tabulate import tabulate
 from player import Player
 from wall import Wall
 from hole import Hole
-import numpy as np
-from tabulate import tabulate
 from number_block import NumberBlock
 from coordinate import Coordinate
 from goal_block import GoalBlock
 from operator_block import OperatorBlock
-import copy
 
 class Board:
-    def __init__(self,width:int,height:int):
-        self.width=width
-        self.height=height
-        self.player: Player | None=None
-        self.hole : Hole | None=None
-        self.walls: list[Wall] = [] 
-        self.number_blocks: list[NumberBlock]=[]
-        self.goal_blocks: list[GoalBlock]=[]
-        self.operator_blocks: list[OperatorBlock]=[]
-        self.grid = [["" for _ in range(self.width)] for _ in range(self.height)]
-        
-        
-        self.EMOJI_MAP = {
-        '🟪': None, # Empty space, do nothing
-        '🧱': Wall,
-        '🤖': Player,
-        '🕳️': Hole,
-        '+': OperatorBlock,
-        '-': OperatorBlock,
-        '*': OperatorBlock,
-        '/': OperatorBlock,
-         }
-    
-   
-    
+    def __init__(self, width: int, height: int):
+        self.width = width
+        self.height = height
 
+        self.player: Player | None = None
+        self.hole: Hole | None = None
+
+        self.walls: list[Wall] = []
+        self.number_blocks: list[NumberBlock] = []
+        self.goal_blocks: list[GoalBlock] = []
+        self.operator_blocks: list[OperatorBlock] = []
+
+        # Authoritative occupancy map
+        self.objects_map: dict[tuple[int, int], object] = {}
+
+        # Emoji maps
+        self.EMOJI_MAP = {
+            '🟪': None,
+            '🧱': Wall,
+            '🤖': Player,
+            '🕳️': Hole,
+            '+': OperatorBlock,
+            '-': OperatorBlock,
+            '*': OperatorBlock,
+            '/': OperatorBlock,
+        }
+        self.GOAL_EMOJI_MAP = {
+            '0️⃣': 0, '1️⃣': 1, '2️⃣': 2, '3️⃣': 3, '4️⃣': 4,
+            '5️⃣': 5, '6️⃣': 6, '7️⃣': 7, '8️⃣': 8, '9️⃣': 9
+        }
+
+        # Hash cache for performance
+        self._cached_hash: int | None = None
+
+    # ------------- Core helpers -------------
+    def in_bounds(self, x: int, y: int) -> bool:
+        return 0 <= x < self.width and 0 <= y < self.height
+
+    def get_object_at(self, x: int, y: int):
+        return self.objects_map.get((x, y), None)
+
+    def _invalidate_hash(self):
+        self._cached_hash = None
+
+    # ------------- Adders keep objects_map in sync -------------
+    def add_player(self, player: Player):
+        self.player = player
+        self.objects_map[(player.position.x, player.position.y)] = player
+        self._invalidate_hash()
+
+    def add_hole(self, hole: Hole):
+        self.hole = hole
+        self.objects_map[(hole.position.x, hole.position.y)] = hole
+        self._invalidate_hash()
+
+    def add_wall(self, wall: Wall):
+        self.walls.append(wall)
+        self.objects_map[(wall.position.x, wall.position.y)] = wall
+        self._invalidate_hash()
+
+    def add_number_block(self, number_block: NumberBlock):
+        self.number_blocks.append(number_block)
+        self.objects_map[(number_block.position.x, number_block.position.y)] = number_block
+        self._invalidate_hash()
+
+    def add_operator_block(self, operator_block: OperatorBlock):
+        self.operator_blocks.append(operator_block)
+        self.objects_map[(operator_block.position.x, operator_block.position.y)] = operator_block
+        self._invalidate_hash()
+
+    def add_goal_block(self, goal_block: GoalBlock):
+        self.goal_blocks.append(goal_block)
+        self.objects_map[(goal_block.position.x, goal_block.position.y)] = goal_block
+        self._invalidate_hash()
+
+    # ------------- Clone (lean and consistent) -------------
     def clone(self):
-        return copy.deepcopy(self)
-    '''def clone(self):
         new_board = Board(self.width, self.height)
 
-        # Copy player
         if self.player:
             new_board.player = Player(self.player.position.x, self.player.position.y)
-
-        # Copy blocks
-        new_board.number_blocks = [NumberBlock(b.position.x, b.position.y, b.value) for b in self.number_blocks]
-        new_board.operator_blocks = [OperatorBlock(b.position.x, b.position.y, b.operator) for b in self.operator_blocks]
-        new_board.goal_blocks = [GoalBlock(b.position.x, b.position.y, b.target_value) for b in self.goal_blocks]
-
-        # Copy hole
         if self.hole:
             new_board.hole = Hole(self.hole.position.x, self.hole.position.y)
 
-        # Copy walls
         new_board.walls = [Wall(w.position.x, w.position.y) for w in self.walls]
+        new_board.number_blocks = [NumberBlock(b.position.x, b.position.y, b.value) for b in self.number_blocks]
+        new_board.operator_blocks = [OperatorBlock(b.position.x, b.position.y, b.operator) for b in self.operator_blocks]
+        new_board.goal_blocks = [GoalBlock(g.position.x, g.position.y, g.target_value) for g in self.goal_blocks]
 
-        # Copy grid (optional, if you use it for display)
-        new_board.grid = [row[:] for row in self.grid]
+        # Rebuild map (authoritative)
+        if new_board.player:
+            new_board.objects_map[(new_board.player.position.x, new_board.player.position.y)] = new_board.player
+        if new_board.hole:
+            new_board.objects_map[(new_board.hole.position.x, new_board.hole.position.y)] = new_board.hole
+        for w in new_board.walls:
+            new_board.objects_map[(w.position.x, w.position.y)] = w
+        for b in new_board.number_blocks:
+            new_board.objects_map[(b.position.x, b.position.y)] = b
+        for op in new_board.operator_blocks:
+            new_board.objects_map[(op.position.x, op.position.y)] = op
+        for g in new_board.goal_blocks:
+            new_board.objects_map[(g.position.x, g.position.y)] = g
 
         return new_board
-'''
-    def __eq__(self, other):
+
+    # ------------- Hash and equality (tight) -------------
+    def hash(self):
+        if self._cached_hash is not None:
+            return self._cached_hash
+
+        player_pos = (self.player.position.x, self.player.position.y) if self.player else None
+        hole_pos = (self.hole.position.x, self.hole.position.y) if self.hole else None
+
+        # Use sorted tuples for determinism and compactness
+        nb = tuple(sorted(((b.position.x, b.position.y, b.value) for b in self.number_blocks)))
+        ops = tuple(sorted(((op.position.x, op.position.y, op.operator) for op in self.operator_blocks)))
+        goals = tuple(sorted(((g.position.x, g.position.y, g.target_value) for g in self.goal_blocks)))
+        walls = tuple(sorted(((w.position.x, w.position.y) for w in self.walls)))
+
+        self._cached_hash = hash((player_pos, hole_pos, nb, ops, goals, walls))
+        return self._cached_hash
+
+    def eq(self, other):
         if not isinstance(other, Board):
             return False
+        return self.hash() == other.hash()
 
-        return (
-            (self.player.position if self.player else None) ==
-            (other.player.position if other.player else None)
-            and {(b.position, b.value) for b in self.number_blocks} ==
-                {(b.position, b.value) for b in other.number_blocks}
-            and {(b.position, b.operator) for b in self.operator_blocks} ==
-                {(b.position, b.operator) for b in other.operator_blocks}
-            and {(b.position, b.target_value) for b in self.goal_blocks} ==
-                {(b.position, b.target_value) for b in other.goal_blocks}
-            and (self.hole.position if self.hole else None) ==
-                (other.hole.position if other.hole else None)
-            and {w.position for w in self.walls} ==
-                {w.position for w in other.walls}
-        )
-
-    def __hash__(self):
-        return hash((
-            (self.player.position if self.player else None),
-            frozenset((b.position, b.value) for b in self.number_blocks),
-            frozenset((b.position, b.operator) for b in self.operator_blocks),
-            frozenset((b.position, b.target_value) for b in self.goal_blocks),
-            (self.hole.position if self.hole else None),
-            frozenset(w.position for w in self.walls)
-        ))
-
-
-
+    # ------------- Move generation (pruned) -------------
     def get_possible_states(self):
+        # Prune impossible transitions before cloning where possible
+        if not self.player:
+            return []
+
         states = []
-        directions = [(1,0), (-1,0), (0,1), (0,-1)]
-        for dx, dy in directions:
-            new_board = self.clone()
-            before = (new_board.player.position.x, new_board.player.position.y)
-            new_board.move_player(dx, dy)
-            after = (new_board.player.position.x, new_board.player.position.y)
-            if before != after:
-                states.append(new_board)
+        px, py = self.player.position.x, self.player.position.y
+
+        for dx, dy in ((1,0), (-1,0), (0,1), (0,-1)):
+            nx, ny = px + dx, py + dy
+            # Quick bounds check
+            if not self.in_bounds(nx, ny):
+                continue
+
+            target = self.get_object_at(nx, ny)
+
+            # Fast prune: walk into empty or hole or pushable chain with free destination
+            if target is None or isinstance(target, Hole):
+                new_board = self.clone()
+                new_board.move_player(dx, dy)
+                if new_board.player.position.x != px or new_board.player.position.y != py:
+                    states.append(new_board)
+                continue
+
+            if isinstance(target, Wall):
+                # Can't move into a wall; skip cloning
+                continue
+
+            if isinstance(target, (NumberBlock, OperatorBlock)):
+                # Verify push chain destination before cloning
+                cx, cy = nx, ny
+                while self.in_bounds(cx, cy):
+                    obj = self.get_object_at(cx, cy)
+                    if isinstance(obj, (NumberBlock, OperatorBlock)):
+                        cx += dx; cy += dy
+                        continue
+                    break
+
+                if not self.in_bounds(cx, cy):
+                    # off-board destination
+                    continue
+
+                dest_obj = self.get_object_at(cx, cy)
+                if dest_obj is None or isinstance(dest_obj, Hole) and getattr(dest_obj, 'is_passable', True):
+                    new_board = self.clone()
+                    new_board.move_player(dx, dy)
+                    if new_board.player.position.x != px or new_board.player.position.y != py:
+                        states.append(new_board)
+                # else blocked chain: skip
+
         return states
 
-
-
-    def add_player(self,player:Player):
-        self.player=player
-        print(f'Board: player has been add to the game')
-    def add_wall(self,wall:Wall):
-        self.walls.append(wall)
-        print(f'A wall at position {wall.position} has been added')
-    def add_number_block(self,number_block:NumberBlock):
-        self.number_blocks.append(number_block)
-        print(f'A number block {number_block.value} at  {number_block.position} has been added to the board')
-    def add_goal_block(self,goal_block: GoalBlock):
-            self.goal_blocks.append(goal_block)
-            print(f'A goal block {goal_block.target_value} at {goal_block.position}  has been added to board')
-    def add_operator_block(self,operator_block: OperatorBlock):
-        self.operator_blocks.append(operator_block)
-        print(f'An operator block {operator_block.operator} at {operator_block.position} has been added to the board.')
-    def add_hole(self,hole: Hole):
-        self.hole=hole
-        print(f'A hole at {hole.position} has been added to board.')
-    def show_status(self):
-        print('\n----Board-----')
-        if self.player:
-            print(self.player)
-        print(f'There are {len(self.walls)} walls on the board')
-        for wall in self.walls:
-            print(f' -{wall}')
-        print(f'There are {len(self.number_blocks)} number_blocks on the board')
-        for block in self.number_blocks:    
-            print(f' -{block}')
-        print(f'There are {len(self.operator_blocks)} operator_blocks on the board')
-        for operator_block in self.operator_blocks:
-            print(f' -{operator_block}')
-        print(f'---------------')
-
-    def remove_object(self, object_to_remove):
-        
-        if isinstance(object_to_remove, GoalBlock):
-            if object_to_remove in self.goal_blocks:
-                self.goal_blocks.remove(object_to_remove)
-                print(f"GoalBlock at {object_to_remove.position} has been removed.")
-                return True
-        
-        return False
-    
-    def check_for_solved_goal(self):
-        
-        expressions = self._find_expression_on_board()
-        print(f"DEBUG: Found {len(expressions)} expression(s) on board: {[e['expr'] for e in expressions]}")
-        if not expressions:
-            return False
-
-        if not self.goal_blocks:
-            print("DEBUG: No goal blocks on the board. Exiting check.")
-            return False
-
-        # Try each found expression against all goals
-        for expr_info in expressions:
-            expr_str = expr_info['expr']
-            print(f"DEBUG: Evaluating expression {expr_str} (dir={expr_info.get('dir')}, positions={expr_info.get('positions')})")
-            calculated_result = self.evaluate_expression(expr_str)
-            print(f"DEBUG: Result of '{expr_str}' = {calculated_result}")
-
-            # collect goals that match this expression result
-            matching_goals = [g for g in self.goal_blocks if g.target_value == calculated_result]
-            if matching_goals:
-                # remove all matching goals (if there are multiple with the same target)
-                for g in matching_goals:
-                    self.remove_object(g)
-                    print(f"DEBUG: Removed goal with target {g.target_value} at {g.position}")
-                print(f"!!! GOAL(S) SOLVED by '{expr_str}' !!!")
-                return True
-
-        # No expression solved any goal
-        return False
-
-    
-    def get_object_at(self,x,y):
-        if self.player and self.player.position.x==x and self.player.position.y==y:
-            return self.player
-        for wall in self.walls:
-            if wall.position.x==x and wall.position.y==y:
-                return wall
-        for number_block in self.number_blocks:
-            if number_block.position.x==x and number_block.position.y==y:
-                return number_block
-        for goal_block in self.goal_blocks:
-            if goal_block.position.x==x and goal_block.position.y==y:
-                return goal_block
-        for operator_block in self.operator_blocks:
-            if operator_block.position.x==x and operator_block.position.y==y:
-                return operator_block
-        return None
-    def in_bounds(self,x,y):
-        return (0 <= x< self.width and 0 <=y < self.height)
-        
-    def move_player(self, direction_x, direction_y):
-       
+    # ------------- Movement (authoritative map updates) -------------
+    def move_player(self, direction_x: int, direction_y: int):
         if not self.player:
-            print("Board: There's no player to move!")
             return
 
-        # 1. Calculate the player's NEW potential position
-        new_x = self.player.position.x + direction_x
-        new_y = self.player.position.y + direction_y
-        new_position = Coordinate(new_x, new_y)
-
-        print(f"\nBoard: Player wants to move to {new_position}.")
-
-        # 2. Check if the new position is outside the board boundaries
-        if not self.in_bounds(new_x,new_y):
-            print("Board: Cannot move! That's off the board.")
+        px, py = self.player.position.x, self.player.position.y
+        nx, ny = px + direction_x, py + direction_y
+        if not self.in_bounds(nx, ny):
             return
-        
 
-        target_object = self.get_object_at(new_position.x, new_position.y)
+        target = self.get_object_at(nx, ny)
 
-        # If target is a hole
-        if isinstance(target_object, Hole):
-            
-            self.player.position = new_position
+        # Hole: move in
+        if isinstance(target, Hole):
+            self.objects_map.pop((px, py), None)
+            self.player.position = Coordinate(nx, ny)
+            self.objects_map[(nx, ny)] = self.player
+            self._invalidate_hash()
             self.check_for_solved_goal()
             return
 
-        # Empty cell -> just move
-        if target_object is None:
-            print('The square is Empty, you can move the player..')
-            self.player.position = new_position
+        # Empty: move
+        if target is None:
+            self.objects_map.pop((px, py), None)
+            self.player.position = Coordinate(nx, ny)
+            self.objects_map[(nx, ny)] = self.player
+            self._invalidate_hash()
             self.check_for_solved_goal()
             return
 
-        # Wall blocks movement
-        if isinstance(target_object, Wall):
-            print('Board: Can\'t move, there is a WALL!')
+        # Wall: blocked
+        if isinstance(target, Wall):
             return
 
-        # Handle pushing for NumberBlock or OperatorBlock (supports chains)
-        if isinstance(target_object, (OperatorBlock, NumberBlock)):
+        # Push chain
+        if isinstance(target, (NumberBlock, OperatorBlock)):
             dx, dy = direction_x, direction_y
 
-            # Build contiguous chain of pushable blocks starting from the target cell
-            chain = []  # list of (x, y, object)
-            cx, cy = new_position.x, new_position.y
-            while self.in_bounds(cx,cy):
-            #while 0 <= cx < self.width and 0 <= cy < self.height:
+            # Build contiguous chain
+            chain: list[tuple[int, int, object]] = []
+            cx, cy = nx, ny
+            while self.in_bounds(cx, cy):
                 obj = self.get_object_at(cx, cy)
                 if isinstance(obj, (NumberBlock, OperatorBlock)):
                     chain.append((cx, cy, obj))
-                    cx += dx
-                    cy += dy
+                    cx += dx; cy += dy
                     continue
-                else:
-                    break
+                break
 
-            # If chain is empty (shouldn't happen because target_object is pushable),
-            # treat as cannot push
             if not chain:
-                print('Board: Nothing to push.')
                 return
 
-            # Now (cx, cy) is the first cell after the last pushable block
-            # Check bounds and occupancy
-            if not (0 <= cx < self.width and 0 <= cy < self.height):
-                print('Board: Can not push there is something off the board behind the block(s).')
+            if not self.in_bounds(cx, cy):
                 return
 
             dest_obj = self.get_object_at(cx, cy)
-            # Destination must be empty to shift the chain
+
+            # Destination empty: shift all, then move player
             if dest_obj is None:
-                # Move blocks from farthest to nearest to avoid overwriting
                 for bx, by, obj in reversed(chain):
-                    obj.position = Coordinate(bx + dx, by + dy)
-                # Move player into the first block's old position
-                self.player.position = new_position
-                print('Board: Push succeeded; moved chain and player.')
+                    old_pos = (bx, by)
+                    new_pos = (bx + dx, by + dy)
+                    self.objects_map.pop(old_pos, None)
+                    obj.position = Coordinate(*new_pos)
+                    self.objects_map[new_pos] = obj
+
+                self.objects_map.pop((px, py), None)
+                self.player.position = Coordinate(nx, ny)
+                self.objects_map[(nx, ny)] = self.player
+                self._invalidate_hash()
                 self.check_for_solved_goal()
                 return
-            # If destination is a passable hole (rare), allow block to fall in? treat similar to empty? Here we treat hole as blocked unless passable semantics needed.
-            if isinstance(dest_obj, Hole):
-                if dest_obj.is_passable:
-                    # allow moving block into hole (remove block), then move player
-                    far_bx, far_by, far_obj = chain[-1]
-                    # Remove the last block from board (simulate falling into hole)
-                    if isinstance(far_obj, NumberBlock) and far_obj in self.number_blocks:
-                        self.number_blocks.remove(far_obj)
-                    elif isinstance(far_obj, OperatorBlock) and far_obj in self.operator_blocks:
-                        self.operator_blocks.remove(far_obj)
-                    # Shift remaining blocks forward
-                    for bx, by, obj in reversed(chain[:-1]):
-                        obj.position = Coordinate(bx + dx, by + dy)
-                    self.player.position = new_position
-                    print('Board: Pushed block(s) and one fell into a passable hole.')
-                    self.check_for_solved_goal()
-                    return
-                else:
-                    print('Board: Can not push there is a closed hole behind the block(s).')
-                    return
 
-            # If destination is a wall, goal, player, or any other non-pushable, block the push
-            print('Board: Can not push there is something behind the block(s)')
+            # Destination hole: consume last block if passable, shift rest, move player
+            if isinstance(dest_obj, Hole) and getattr(dest_obj, 'is_passable', True):
+                far_bx, far_by, far_obj = chain[-1]
+                self.objects_map.pop((far_bx, far_by), None)
+                if isinstance(far_obj, NumberBlock):
+                    if far_obj in self.number_blocks:
+                        self.number_blocks.remove(far_obj)
+                elif isinstance(far_obj, OperatorBlock):
+                    if far_obj in self.operator_blocks:
+                        self.operator_blocks.remove(far_obj)
+
+                for bx, by, obj in reversed(chain[:-1]):
+                    old_pos = (bx, by)
+                    new_pos = (bx + dx, by + dy)
+                    self.objects_map.pop(old_pos, None)
+                    obj.position = Coordinate(*new_pos)
+                    self.objects_map[new_pos] = obj
+
+                self.objects_map.pop((px, py), None)
+                self.player.position = Coordinate(nx, ny)
+                self.objects_map[(nx, ny)] = self.player
+                self._invalidate_hash()
+                self.check_for_solved_goal()
+                return
+
+            # Otherwise blocked
             return
 
-        # If target is any other non-handled object, block movement
-        print('Board: Can not move there.')
-        return
-    
-    def show_board(self):
-        # Reset grid each time to avoid leftover values
-        self.grid = [["🟪" for _ in range(self.width)] for _ in range(self.height)]
+    # ------------- Goals and expressions -------------
+    def remove_object(self, object_to_remove):
+        if isinstance(object_to_remove, GoalBlock):
+            for g in list(self.goal_blocks):
+                if g.position == object_to_remove.position and g.target_value == object_to_remove.target_value:
+                    self.goal_blocks.remove(g)
+                    self.objects_map.pop((g.position.x, g.position.y), None)
+                    self._invalidate_hash()
+                    return True
+        return False
 
-        def safe_place(x, y, symbol):
-            if 0 <= y < self.height and 0 <= x < self.width:
-                self.grid[y][x] = symbol
-            else:
-                print(f"⚠️ Warning: Tried to place {symbol} at ({x},{y}) outside grid")
+    def check_for_solved_goal(self):
+        expressions = self._find_expression_on_board()
+        if not expressions or not self.goal_blocks:
+            return False
 
-        if self.hole:
-            safe_place(self.hole.position.x, self.hole.position.y, ' 🕳️ ')
+        for expr_info in expressions:
+            expr_str = expr_info['expr']
+            calculated_result = self.evaluate_expression(expr_str)
+            matching_goals = [g for g in self.goal_blocks if g.target_value == calculated_result]
+            if matching_goals:
+                for g in matching_goals:
+                    self.remove_object(g)
+                return True
+        return False
 
-        for wall in self.walls:
-            safe_place(wall.position.x, wall.position.y, ' 🧱 ')
-
-        for block in self.number_blocks:
-            safe_place(block.position.x, block.position.y, f' {block.value} ')
-
-        for op_block in self.operator_blocks:
-            safe_place(op_block.position.x, op_block.position.y, f' {op_block.operator} ')
-
-        for goal_block in self.goal_blocks:
-            safe_place(goal_block.position.x, goal_block.position.y, f' {goal_block.target_value} ')
-
-        if self.player:
-            safe_place(self.player.position.x, self.player.position.y, ' 🤖 ')
-
-        print("\n--- Board Visual ---")
-        print(tabulate(self.grid, tablefmt='grid'))
-        print("--------------------\n")
-
-    '''def show_board(self):
-        #self.grid = [[ '🟪' for _ in range(self.width)] for _ in range(self.height)]
-        
-        if self.hole:
-            x, y = self.hole.position.x, self.hole.position.y
-            self.grid[y][x] = ' 🕳️ ' 
-        for wall in self.walls:
-            x, y = wall.position.x, wall.position.y
-            self.grid[y][x] = ' 🧱 '
-        for block in self.number_blocks:
-            x, y = block.position.x, block.position.y
-            self.grid[y][x] = f' {block.value} ' 
-
-        for op_block in self.operator_blocks:
-            x, y = op_block.position.x, op_block.position.y
-            self.grid[y][x] = f' {op_block.operator} ' 
-
-        for goal_block in self.goal_blocks:
-            x, y = goal_block.position.x, goal_block.position.y
-            
-            self.grid[y][x] = f' {goal_block.target_value} '
-
-        if self.player:
-            x, y = self.player.position.x, self.player.position.y
-            self.grid[y][x] = ' 🤖 ' 
-
-        # 3. Print the grid row by row
-        print("\n--- Board Visual ---")
-        print(tabulate(self.grid,tablefmt='grid'))
-        print("--------------------\n")
-'''
-    def is_game_won(self) -> bool:
-        if not self.hole:
-            return False # No hole, can't win
-        return self.player.position.x == self.hole.position.x and self.player.position.y == self.hole.position.y
-    def evaluate_expression(self,expr):
-        
-        # Remove spaces
-        expr = expr.replace(' ', '')
-
-        # Handle double operators like -- or ++
-        expr = re.sub(r'\+\+', '+', expr)
-        expr = re.sub(r'--', '+', expr)
-        expr = re.sub(r'\+-', '-', expr)
-        expr = re.sub(r'-\+', '-', expr)
-
-        # Handle leading negative numbers
-        if expr and expr[0] == '-':
-            expr = '0' + expr
-
-        # Find all numbers and operators
-        tokens = re.findall(r'\d+|[+\-*/]', expr)
-
-        # Convert number strings to actual integers
-        i = 0
-        while i < len(tokens):
-            if re.fullmatch(r'\d+', tokens[i]):
-                tokens[i] = int(tokens[i])
-            i += 1
-
-        # Evaluate multiplication and division first
-        i = 0
-        while i < len(tokens):
-            if tokens[i] in ('*', '/'):
-                left = tokens[i - 1]
-                right = tokens[i + 1]
-                if tokens[i] == '*':
-                    result = left * right
-                else:
-                    if right == 0: return float('NOT_DEFINED') # Handle division by zero
-                    result = left / right
-                tokens[i - 1:i + 2] = [result]
-                i -= 1 # Go back and re-evaluate
-            else:
-                i += 1
-
-        # Evaluate addition and subtraction
-        if not tokens:
-            return 0
-        result = tokens[0]
-        i = 1
-        while i < len(tokens):
-            op = tokens[i]
-            num = tokens[i + 1]
-            if op == '+':
-                result += num
-            elif op == '-':
-                result -= num
-            i += 2
-
-        return int(result) # Ensure the result is an integer
-        
-        
-
-    def load_level_from_data(self, level_data: list[list[str]]):
-       
-        self.height = len(level_data)
-        self.width = max(len(row) for row in level_data)
-        print(f"Loading a level of size {self.width}x{self.height}...")
-
-        # Loop through the data and create objects
-        for y, row in enumerate(level_data):
-            for x, emoji in enumerate(row):
-                if emoji in ['3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','0️⃣','1️⃣','2️⃣']:
-                    target_value=int(emoji[0])
-                    self.add_goal_block(GoalBlock(x,y,target_value))
-                # 1. Handle digits first (for NumberBlocks)
-                if emoji.isdigit():
-                    value = int(emoji)
-                    self.add_number_block(NumberBlock(x, y, value))
-                    continue # Move to the next square
-                # 3. Handle all other emojis with our map
-                object_class = self.EMOJI_MAP.get(emoji)
-                if object_class:
-                    
-                    if object_class == GoalBlock:
-                        self.add_goal_block(GoalBlock(x,y))
-                    if object_class == Wall:
-                        self.add_wall(Wall(x, y))
-                    elif object_class == Player:
-                        self.add_player(Player(x, y))
-                    elif object_class == Hole:
-                        self.add_hole(Hole(x, y))
-                    elif object_class == OperatorBlock:
-                        self.add_operator_block(OperatorBlock(x, y, emoji)) # The emoji is the operator
-                # '🟪' (empty) and unknown emojis are ignored
-                
-        print("Level loading complete.\n")   
     def _find_expression_on_board(self):
-        
         expressions = []
-        # to ensure no duplicate expressinons
-        seen = set()  
-
-        # directions: (dx, dy, name)
-        # horizontal left --> right
-        # vertical   top --> down
+        seen = set()
         directions = [(1, 0, 'horizontal'), (0, 1, 'vertical')]
 
         for y in range(self.height):
             for x in range(self.width):
                 start_obj = self.get_object_at(x, y)
-                #expression must start with a number
                 if not isinstance(start_obj, NumberBlock):
                     continue
 
@@ -496,7 +333,7 @@ class Board:
                     expect_operator = True
                     nx, ny = x + dx, y + dy
 
-                    while 0 <= nx < self.width and 0 <= ny < self.height:
+                    while self.in_bounds(nx, ny):
                         obj = self.get_object_at(nx, ny)
                         if expect_operator:
                             if isinstance(obj, OperatorBlock):
@@ -505,27 +342,160 @@ class Board:
                                 expect_operator = False
                                 nx += dx; ny += dy
                                 continue
-                            else:
-                                break
-                        else:  # expect a number
+                            break
+                        else:
                             if isinstance(obj, NumberBlock):
                                 parts.append(str(obj.value))
                                 positions.append((nx, ny))
                                 expect_operator = True
                                 nx += dx; ny += dy
                                 continue
-                            else:
-                                break
+                            break
 
-                    # valid chain must be at least Num Op Num -> parts len >= 3 and last part must be a number
                     if len(parts) >= 3 and parts[-1].lstrip('-').isdigit():
                         key = tuple(positions)
                         if key not in seen:
                             seen.add(key)
-                            expressions.append({
-                                'expr': ''.join(parts),
-                                'positions': positions,
-                                'dir': dir_name
-                            })
-
+                            expressions.append({'expr': ''.join(parts), 'positions': positions, 'dir': dir_name})
         return expressions
+
+    def evaluate_expression(self, expr):
+        expr = expr.replace(' ', '')
+        expr = re.sub(r'\+\+', '+', expr)
+        expr = re.sub(r'--', '+', expr)
+        expr = re.sub(r'\+-', '-', expr)
+        expr = re.sub(r'-\+', '-', expr)
+        if expr and expr[0] == '-':
+            expr = '0' + expr
+
+        tokens = re.findall(r'\d+|[+\-*/]', expr)
+        for i in range(len(tokens)):
+            if re.fullmatch(r'\d+', tokens[i]):
+                tokens[i] = int(tokens[i])
+
+        i = 0
+        while i < len(tokens):
+            if tokens[i] in ('*', '/'):
+                left = tokens[i - 1]; right = tokens[i + 1]
+                if tokens[i] == '*':
+                    res = left * right
+                else:
+                    if right == 0:
+                        return float('nan')
+                    res = left / right
+                tokens[i - 1:i + 2] = [res]
+                i -= 1
+            else:
+                i += 1
+
+        if not tokens:
+            return 0
+        result = tokens[0]
+        i = 1
+        while i < len(tokens):
+            op = tokens[i]; num = tokens[i + 1]
+            if op == '+':
+                result += num
+            else:
+                result -= num
+            i += 2
+        return int(result)
+
+    # ------------- Loading and display -------------
+    def load_level_from_data(self, level_data: list[list[str]]):
+        self.height = len(level_data)
+        self.width = max(len(row) for row in level_data)
+
+        # Clear existing state
+        self.player = None
+        self.hole = None
+        self.walls.clear()
+        self.number_blocks.clear()
+        self.goal_blocks.clear()
+        self.operator_blocks.clear()
+        self.objects_map.clear()
+        self._invalidate_hash()
+
+        for y, row in enumerate(level_data):
+            for x, emoji in enumerate(row):
+                if emoji in self.GOAL_EMOJI_MAP:
+                    target_value = self.GOAL_EMOJI_MAP[emoji]
+                    self.add_goal_block(GoalBlock(x, y, target_value))
+                    continue
+
+                if emoji.isdigit():
+                    self.add_number_block(NumberBlock(x, y, int(emoji)))
+                    continue
+
+                object_class = self.EMOJI_MAP.get(emoji)
+                if object_class == Wall:
+                    self.add_wall(Wall(x, y)); continue
+                elif object_class == Player:
+                    self.add_player(Player(x, y)); continue
+                elif object_class == Hole:
+                    self.add_hole(Hole(x, y)); continue
+                elif object_class == OperatorBlock:
+                    self.add_operator_block(OperatorBlock(x, y, emoji)); continue
+                # ignore '🟪' and unknown
+        # No print in load to avoid I/O cost during solver runs
+
+    def show_board_fast(self):
+        # Lightweight ASCII for solver replay
+        rows = []
+        for y in range(self.height):
+            row_chars = []
+            for x in range(self.width):
+                obj = self.get_object_at(x, y)
+                if obj is None:
+                    row_chars.append('.')
+                elif isinstance(obj, Wall):
+                    row_chars.append('#')
+                elif isinstance(obj, Hole):
+                    row_chars.append('O')
+                elif isinstance(obj, Player):
+                    row_chars.append('P')
+                elif isinstance(obj, NumberBlock):
+                    row_chars.append(str(obj.value))
+                elif isinstance(obj, OperatorBlock):
+                    row_chars.append(obj.operator)
+                elif isinstance(obj, GoalBlock):
+                    row_chars.append(f'G{obj.target_value}')
+                else:
+                    row_chars.append('?')
+            rows.append(' '.join(row_chars))
+        print('\n'.join(rows))
+
+    def show_board(self):
+        # Emoji renderer — keep for manual use; avoid during heavy solver runs
+        grid = [['🟪' for _ in range(self.width)] for _ in range(self.height)]
+
+        def place(x, y, sym):
+            if 0 <= y < self.height and 0 <= x < self.width:
+                grid[y][x] = sym
+
+        if self.hole:
+            place(self.hole.position.x, self.hole.position.y, ' 🕳️ ')
+        for w in self.walls:
+            place(w.position.x, w.position.y, ' 🧱 ')
+        for b in self.number_blocks:
+            place(b.position.x, b.position.y, f' {b.value} ')
+        for op in self.operator_blocks:
+            place(op.position.x, op.position.y, f' {op.operator} ')
+        for g in self.goal_blocks:
+            place(g.position.x, g.position.y, f'🎯{g.target_value}')
+        if self.player:
+            place(self.player.position.x, self.player.position.y, ' 🤖 ')
+
+        print(tabulate(grid, tablefmt='grid'))
+
+    def is_game_won(self) -> bool:
+        if not self.hole or not self.player:
+            return False
+        return (self.player.position.x == self.hole.position.x
+                and self.player.position.y == self.hole.position.y)
+
+    def __repr__(self):
+        return f"<Board Player={self.player.position if self.player else None}>"
+
+    def __str__(self):
+        return f"Board with Player at {self.player.position}, {len(self.walls)} walls, {len(self.number_blocks)} numbers"

@@ -1,11 +1,42 @@
 from board import Board
 from bfs_computing import Bfs_Computing
 from dfs_computing import Dfs_Computing
+from astar_computing import AStar_Computing
 import time
 data =[ ['🟪','🟪','2️⃣','🕳️'],
-                ['5','-','🟪','🧱'],
-                ['🤖','🟪','3','🟪'],
-                [ '🟪','🟪','🟪','🟪'],
+                ['5','🟪','🧱','🧱'],
+                ['🟪','-','🟪'],
+                [ '3','🟪','🤖','🟪'],
+            ]
+level_7_data =[ ['🧱','🧱','🧱','1️⃣','2️⃣','🕳️','🧱'],
+                ['🧱','🧱','🧱','🟪','🧱','🧱','🧱'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪' ,'-','🟪','🟪','🟪'],
+                ['🟪','1','🟪','🟪','🟪','3','🟪'],
+                ['🟪','🟪','🟪','2','🟪','🟪','🟪',],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪','🤖','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'], 
+            ]
+level_4_data =[ ['🟪','🟪','🧱','🕳️','🧱','🟪','🟪'],
+                ['🟪','🟪','🧱','6️⃣','🧱','🟪','🟪'],
+                ['🟪','🟪','🟪','🤖','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪' ,'🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','1','+','2','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','2','+','3','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🟪','🟪','🟪','🟪','🟪','🟪','🟪'], 
+            ]
+level_5_data =[ ['🧱','🧱','🧱','🧱','🧱','🟪','🧱','🟪','+','1','+','🟪','🧱','🟪'],
+                ['🧱','🧱','🧱','🧱','🧱','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🧱','🧱','🧱','🧱','🧱','🟪','🟪','1','🟪','🟪','🟪','2','🟪','🟪'],
+                ['🧱','🧱','🧱' ,'🧱','🧱','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🕳️','8️⃣','5️⃣','4️⃣', '3️⃣','🟪','🟪','🟪','🟪','🤖','🟪','🟪','🟪','🟪'],
+                ['🧱','🧱','🧱','🧱','🧱','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🧱','🧱','🧱','🧱','🧱','🟪','🟪','3','🟪','🟪','🟪','4','🟪','🟪'],
+                ['🧱','🧱','🧱','🧱','🧱','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪','🟪'],
+                ['🧱','🧱','🧱','🧱','🧱','🟪','🧱','🟪','+','1','+','🟪','🧱','🟪'], 
             ]
 #board.load_level_from_data(data)
 #board.show_board()
@@ -13,19 +44,26 @@ data =[ ['🟪','🟪','2️⃣','🕳️'],
 #for i in states:
 #    i.show_board()
 #    i.show_status()
+def run_Astar():
+    b = Board(width=0,height=0)
+    b.load_level_from_data(level_5_data)
+    solver = AStar_Computing(b)
+    if solver.solve():
+        solver.report()
+run_Astar()
+
+
+
+
 
 def run_bfs():
     b = Board(width=0,height=0)
-    b.load_level_from_data(data)
-    solver = Bfs_Computing(b)
-    solution_path = solver.solve()
-    if solution_path:
-        print("  💯💯💯Found Bfs solution💯💯💯")
-        for step, state in enumerate(solution_path):
-            print(f"\n--- step {step} ---")
-            state.show_board()
-    else:
-        print("No solution")
+    b.load_level_from_data(level_5_data)
+    solver = Bfs_Computing(b,max_depth=100, fast_report=True)
+    if solver.solve():
+        solver.report()
+    
+   
 #run_bfs()
 
 
@@ -60,4 +98,4 @@ def run_dfs():
             state.show_board()
     else:
         print("No solution")
-run_dfs()
+#run_dfs()

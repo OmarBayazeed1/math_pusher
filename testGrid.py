@@ -2,6 +2,7 @@ from board import Board
 from bfs_computing import Bfs_Computing
 from dfs_computing import Dfs_Computing
 from astar_computing import AStar_Computing
+from ucs_computing import UniformCostSearch
 import time
 data =[ ['🟪','🟪','2️⃣','🕳️'],
                 ['5','🟪','🧱','🧱'],
@@ -46,19 +47,27 @@ level_5_data =[ ['🧱','🧱','🧱','🧱','🧱','🟪','🧱','🟪','+','1'
 #    i.show_status()
 def run_Astar():
     b = Board(width=0,height=0)
-    b.load_level_from_data(level_5_data)
+    b.load_level_from_data(data)
     solver = AStar_Computing(b)
     if solver.solve():
         solver.report()
-run_Astar()
+#run_Astar()
 
+def run_UCS():
+    b = Board(width=0, height=0)
+    b.load_level_from_data(data)
+    solver = UniformCostSearch(b)
+    if solver.solve():
+        solver.report()
+
+#run_UCS()
 
 
 
 
 def run_bfs():
     b = Board(width=0,height=0)
-    b.load_level_from_data(level_5_data)
+    b.load_level_from_data(data)
     solver = Bfs_Computing(b,max_depth=100, fast_report=True)
     if solver.solve():
         solver.report()

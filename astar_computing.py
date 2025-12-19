@@ -33,13 +33,14 @@ class AStar_Computing:
         - Corner trap penalty (optional)
         """
         h1 = 0
-        if board.player and board.hole:
-            px, py = board.player.position.x, board.player.position.y
-            hx, hy = board.hole.position.x, board.hole.position.y
-            h1 = abs(px - hx) + abs(py - hy)
+        if not board.goal_blocks:
+            if board.player and board.hole:
+                px, py = board.player.position.x, board.player.position.y
+                hx, hy = board.hole.position.x, board.hole.position.y
+                h1 = abs(px - hx) + abs(py - hy)
 
         # Penalty for unsolved goals
-        h2 = len(board.goal_blocks) * 5   # weight can be tuned
+        h2 = len(board.goal_blocks) * 50   # weight can be tuned
 
         # Distance of blocks to nearest matching goal
         h3 = 0
@@ -65,9 +66,10 @@ class AStar_Computing:
             if board.get_object_at(x, y-1) and isinstance(board.get_object_at(x, y-1), type(board.walls[0])):
                 walls += 1
             if walls >= 2:   # stuck in a corner
-                h4 += 10     # heavy penalty
+                h4 += 20     # heavy penalty
+            
 
-        return h1 + h2 + h3 + h4
+        return h1 + h2  +h4 
 
     def solve(self):
         start_time = time.time()

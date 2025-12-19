@@ -3,6 +3,7 @@ from bfs_computing import Bfs_Computing
 from dfs_computing import Dfs_Computing
 from astar_computing import AStar_Computing
 from ucs_computing import UniformCostSearch
+from hillclimbing_computing import HillClimbing
 import time
 data =[ ['🟪','🟪','2️⃣','🕳️'],
                 ['5','🟪','🧱','🧱'],
@@ -45,13 +46,21 @@ level_5_data =[ ['🧱','🧱','🧱','🧱','🧱','🟪','🧱','🟪','+','1'
 #for i in states:
 #    i.show_board()
 #    i.show_status()
+def run_HillClimbing():
+    b = Board(width=0, height=0)
+    b.load_level_from_data(level_5_data)   
+    solver = HillClimbing(b, heuristic=AStar_Computing.smart_heuristic, max_steps=300)
+    solver.solve()
+    solver.report()
+#run_HillClimbing()
+
 def run_Astar():
     b = Board(width=0,height=0)
-    b.load_level_from_data(data)
+    b.load_level_from_data(level_5_data)
     solver = AStar_Computing(b)
     if solver.solve():
         solver.report()
-#run_Astar()
+run_Astar()
 
 def run_UCS():
     b = Board(width=0, height=0)
